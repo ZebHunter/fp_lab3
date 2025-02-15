@@ -8,9 +8,9 @@ let test_gen_data _ =
     List.of_seq
       (Seq.unfold
          (fun s ->
-           match s () with
-           | Seq.Nil -> None
-           | Seq.Cons (x, xs) -> Some (x, xs))
+            match s () with
+            | Seq.Nil -> None
+            | Seq.Cons (x, xs) -> Some (x, xs))
          seq)
   in
   assert_equal [ 0.0; 0.5 ] result ~printer:(fun lst -> String.concat ", " (List.map string_of_float lst))

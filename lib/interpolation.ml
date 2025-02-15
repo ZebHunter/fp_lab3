@@ -13,8 +13,9 @@ let linear_interpolate points x =
 let lagrange_interpolate points x =
   List.fold_left
     (fun acc (xi, yi) ->
-      acc
-      +. (yi *. List.fold_left (fun prod (xj, _) -> if xj = xi then prod else prod *. (x -. xj) /. (xi -. xj)) 1. points))
+       acc
+       +. (yi
+           *. List.fold_left (fun prod (xj, _) -> if xj = xi then prod else prod *. (x -. xj) /. (xi -. xj)) 1. points))
     0.
     points
 ;;

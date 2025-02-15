@@ -62,14 +62,14 @@ let apply_interp points interpolation_types step last_interpolated =
   let sorted_types = sort_interpolations interpolation_types in
   List.map
     (fun interpolation ->
-      let relevant_points =
-        if interpolation.window_size = 2
-        then List.rev (take 2 (List.rev points))
-        else take interpolation.window_size points
-      in
-      if List.length relevant_points >= interpolation.window_size
-      then interpolate_points interpolation relevant_points step last_interpolated
-      else interpolation.name, None)
+       let relevant_points =
+         if interpolation.window_size = 2
+         then List.rev (take 2 (List.rev points))
+         else take interpolation.window_size points
+       in
+       if List.length relevant_points >= interpolation.window_size
+       then interpolate_points interpolation relevant_points step last_interpolated
+       else interpolation.name, None)
     sorted_types
 ;;
 
