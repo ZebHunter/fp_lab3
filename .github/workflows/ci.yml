@@ -1,0 +1,44 @@
+name: OCaml CI
+
+on: 
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+        fail-fast: false
+
+    runs-on: ubuntu-latest
+    
+    steps:
+        - name: Checkout tree
+          uses: actions/checkout@v4
+
+        - name: Set-up OCaml
+          uses: ocaml/setup-ocaml@v3
+          with:
+            ocaml-compiler: 4.14
+
+        - name: Install dependencies
+          run: opam install --deps-only --locked .
+        
+        - name: Install linter and tester
+          run: opam install zanuda ounit2 qcheck
+        
+        - name: Build project
+          run: opam exec -- dune build @fmt @check @runtest -j3 
+    
+        - name: Run tests
+          run: opam exec -- dune runtest
+
+        - name: Linting
+          run: opam exec -- zanuda -no-top_file_license -no-check-filesystem -no-exc_failwith -no-mutable_hashtables -dir .
+    
+        - name: Check formatting
+          run: opam exec -- dune fmt
