@@ -38,7 +38,7 @@ jobs:
           run: opam exec -- dune runtest
 
         - name: Linting
-          run: opam exec -- zanuda -no-top_file_license -no-check-filesystem -no-exc_failwith -no-mutable_hashtables -dir .
+          run: opam exec -- zanuda -no-top_file_license -no-check-filesystem -no-exc_failwith -dir .
     
         - name: Check formatting
           run: opam exec -- dune fmt
