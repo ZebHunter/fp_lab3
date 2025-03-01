@@ -1,7 +1,26 @@
 open Interpolation
 open Io
 
-type runner =
+module StateMonad = struct
+  type ('a, 's) state = 's -> 'a * 's
+
+  let return x = fun s -> x, s
+
+  let bind m f =
+    fun s ->
+    let x, s' = m s in
+    f x s'
+  ;;
+
+  let ( >>= ) = bind
+  let get = fun s -> s, s
+  let put new_state = fun _ -> (), new_state
+  let modify f = fun s -> (), f s
+end
+
+open StateMonad
+
+type runner_state =
   { step : float
   ; points_stream : (float * float) Seq.t
   ; interpolation_types : interpolation list
@@ -58,14 +77,24 @@ let interpolate_points interpolation relevant_points step last_interpolated =
   else interpolation.name, last_x |> Option.join
 ;;
 
+let rec read_init_points n acc =
+  if n <= 0
+  then acc
+  else (
+    let point = read_point () in
+    read_init_points (n - 1) (Seq.append acc (Seq.return point)))
+;;
+
+let read_init_points n = read_init_points n Seq.empty
+
 let apply_interp points interpolation_types step last_interpolated =
   let sorted_types = sort_interpolations interpolation_types in
   List.map
     (fun interpolation ->
        let relevant_points =
          if interpolation.window_size = 2
-         then List.rev (take 2 (List.rev points))
-         else take interpolation.window_size points
+         then List.rev (List.rev points |> List.rev |> List.rev)
+         else List.rev (List.rev points |> List.rev)
        in
        if List.length relevant_points >= interpolation.window_size
        then interpolate_points interpolation relevant_points step last_interpolated
@@ -73,40 +102,44 @@ let apply_interp points interpolation_types step last_interpolated =
     sorted_types
 ;;
 
-let read_init_points n =
-  let rec aux n acc = if n = 0 then acc else aux (n - 1) (Seq.append acc (Seq.return (read_point ()))) in
-  aux n Seq.empty
-;;
-
-let read_and_update_runner runner =
+let read_and_update_runner () =
   try
     let new_point = read_point () in
-    Seq.append runner.points_stream (Seq.return new_point)
+    modify (fun state -> { state with points_stream = Seq.append state.points_stream (Seq.return new_point) })
   with
-  | End_of_file -> runner.points_stream
+  | End_of_file -> return ()
 ;;
 
-let rec update_runner runner =
-  let points = List.of_seq runner.points_stream in
-  let last_interpolated =
-    if List.length points >= 2
-    then apply_interp points runner.interpolation_types runner.step runner.last_interpolated_x
-    else runner.last_interpolated_x
-  in
-  let updated_points = read_and_update_runner runner in
-  let required_points =
-    List.fold_left (fun acc interpolation -> max acc interpolation.window_size) 0 runner.interpolation_types
-  in
-  let updated_points =
-    if Seq.length updated_points > required_points then Seq.drop 1 updated_points else updated_points
-  in
-  update_runner { runner with points_stream = updated_points; last_interpolated_x = last_interpolated }
+let rec update_runner () =
+  bind get (fun state ->
+    let points = List.of_seq state.points_stream in
+    let last_interpolated =
+      if List.length points >= 2
+      then apply_interp points state.interpolation_types state.step state.last_interpolated_x
+      else state.last_interpolated_x
+    in
+    bind (read_and_update_runner ()) (fun () ->
+      bind get (fun updated_state ->
+        let required_points =
+          List.fold_left
+            (fun acc interpolation -> max acc interpolation.window_size)
+            0
+            updated_state.interpolation_types
+        in
+        let updated_points =
+          if Seq.length updated_state.points_stream > required_points
+          then Seq.drop 1 updated_state.points_stream
+          else updated_state.points_stream
+        in
+        put { updated_state with points_stream = updated_points; last_interpolated_x = last_interpolated }
+        >>= update_runner)))
 ;;
 
 let init_runner runner =
   let min_points = 2 in
   let init_points = read_init_points min_points in
   update_runner
+    ()
     { runner with
       points_stream = init_points
     ; last_interpolated_x = List.map (fun i -> i.name, None) runner.interpolation_types
